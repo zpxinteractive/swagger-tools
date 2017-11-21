@@ -38,6 +38,7 @@ var pathToRegexp = require('path-to-regexp');
 var bodyParserOptions = {
   extended: false
 };
+
 var multerOptions = {
   storage: multer.memoryStorage()
 };
@@ -76,7 +77,13 @@ var bodyParser = function (req, res, next) {
     next();
   }
 };
-var realMultiPartParser = multer(multerOptions);
+var realMultiPartParser;
+function getRealMultiPartParser() {
+  if (!realMultiPartParser) {
+    realMultiPartParser = multer(multerOptions);
+  }
+  return realMultiPartParser;
+}
 var makeMultiPartParser = function (parser) {
   return function (req, res, next) {
     if (_.isUndefined(req.files)) {
@@ -183,10 +190,10 @@ var processOperationParameters = function (swaggerMetadata, pathKeys, pathMatch,
   var contentType = req.headers['content-type'];
   if (multiPartFields.length) {
     // If there are files, use multer#fields
-    parsers.push(makeMultiPartParser(realMultiPartParser.fields(multiPartFields)));
+    parsers.push(makeMultiPartParser(getRealMultiPartParser().fields(multiPartFields)));
   } else if (contentType && contentType.split(';')[0] === 'multipart/form-data') {
     // If no files but multipart form, use empty multer#array for text fields
-    parsers.push(makeMultiPartParser(realMultiPartParser.array()));
+    parsers.push(makeMultiPartParser(getRealMultiPartParser().array()));
   }
 
   async.map(parsers, function (parser, callback) {
@@ -370,8 +377,12 @@ var processSwaggerDocuments = function (rlOrSO, apiDeclarations) {
  *
  * @returns the middleware function
  */
-exports = module.exports = function (rlOrSO, apiDeclarations) {
-  debug('Initializing swagger-metadata middleware');
+exports = module.exports = function (opts, rlOrSO, apiDeclarations) {
+  console.log('Initializing swagger-metadata middleware', opts);
+
+  if (opts && opts.multerOptions) {
+    multerOptions = opts.multerOptions;
+  }
 
   var apiCache = processSwaggerDocuments(rlOrSO, apiDeclarations);
   var swaggerVersion = cHelpers.getSwaggerVersion(rlOrSO);
